@@ -1,0 +1,87 @@
+#!/bin/dash
+# 
+# Either creates a branch, deletes a branch, or lists current branch names.
+PATH=$PATH:.
+. pigs-helpers
+pigs_dir_exists pigs-branch
+
+BRANCHES_DIR=.pig/branches
+CURR_BRANCH=.pig/curr_branch
+COMMITS_LOG=.pig/logs/commits
+COMMIT_NUM="$(wc -l "$COMMITS_LOG" | cut -d ' ' -f1)"
+
+# If no commits
+if
+    [ "$COMMIT_NUM" -eq 0 ]
+then
+    echo "pigs-branch: error: this command can not be run until after the first commit" >&2
+    exit 1
+fi
+
+# Check correct num of args
+if
+    [ "$#" -gt 2 ]
+then
+    echo "usage: pigs-branch [-d] <branch>" >&2
+    exit 1
+fi
+
+# get list of curr branches
+if 
+    [ "$#" -eq 0 ]
+then
+    for file in "$BRANCHES_DIR"/*
+    do
+        if 
+            [ -d "$file" ]
+        then
+            # shellcheck disable=SC2005
+            echo "$(basename "$file")"
+        fi
+    done
+# create branch
+elif
+    [ "$#" -eq 1 ]
+then
+    BRANCH="$1"
+    # if branch exists
+    if 
+        [ -d "$BRANCHES_DIR"/"$BRANCH" ]
+    then
+        echo "pigs-branch: error: branch '$BRANCH' already exists" >&2
+        exit 1
+    fi
+    create_dir "$BRANCHES_DIR"/"$BRANCH"
+# delete branch
+elif 
+    [ "$#" -eq 2 ] &&
+    [ "$1" = '-d' ]
+then
+    BRANCH="$2"
+
+    if 
+        [ "$BRANCH"  = 'master' ]
+    then
+        echo "pigs-branch: error: can not delete branch '$BRANCH': default branch" >&2
+        exit 1
+    fi
+
+    # if branch exists
+    if 
+        [ -d "$BRANCHES_DIR"/"$BRANCH" ]
+    then
+        BRANCH_PATH="$BRANCHES_DIR"/"$BRANCH"
+        # check if we're already in that branch
+        if
+            [ "$(cat $CURR_BRANCH )" = "$BRANCH" ]
+        then
+            echo "pigs-branch: error: can not delete branch '$BRANCH': current branch" >&2
+            exit 1
+        fi
+        rm -rf "${BRANCH_PATH:?}" || exit 1
+        echo "Deleted branch '$BRANCH'"
+    else    
+        echo "pigs-branch: error: branch '$BRANCH' doesn't exist" >&2
+        exit 1
+    fi
+fi

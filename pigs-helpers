@@ -1,0 +1,155 @@
+#!/bin/dash
+# 
+# Helper Functions for Ass1
+###############################################
+# Check pigs directory exists.
+# Arguments:
+#   Filename
+# Outputs:
+#   1 when dir doesn't exist, 0 when it exists
+###############################################
+pigs_dir_exists () {
+    FILENAME="$1"
+    if 
+        [ ! -d '.pig' ]
+    then
+        echo "$FILENAME": error: pigs repository directory .pig not found >&2
+        exit 1
+    fi
+}
+###############################################
+# Creates directory if it doesn't already exist
+# Arguments:
+#   Directory Name
+# Outputs:
+#   0 when dir doesn't exist, 1 when it exists
+###############################################
+create_dir () {
+    DIR_NAME="$1"
+    if 
+        [ ! -d "$DIR_NAME" ]
+    then
+        mkdir "$DIR_NAME" || exit 1
+    fi
+}
+###############################################
+# Creates file if it doesn't already exist
+# Arguments:
+#   Filename
+# Outputs:
+#   0 when file doesn't exist, 1 when it exists
+###############################################
+create_file () {
+    FILENAME="$1"
+    if 
+        [ ! -e "$FILENAME" ]
+    then
+        touch "$FILENAME" || exit 1
+    fi
+}
+###############################################
+# Gets the last modified time of a given file
+# Arguments:
+#   Filename
+# Outputs:
+#   Modified time 
+###############################################
+modified_time () {
+    FILENAME="$1"
+    stat -c "%y" "$FILENAME"
+}
+###############################################
+# Compares the files in the index dir & checks
+# whether they were updated in the curr dir
+# Arguments:
+#   Index directory
+# Outputs:
+#   1 if copy fails
+###############################################
+update_index_file () {
+    INDEX_DIR="$1"
+    for index_file in "$INDEX_DIR"/*
+    do
+        diff "$index_file" "$(basename "$index_file")" > /dev/null
+        EXIT_STATUS="$?"
+        if 
+            [ "$EXIT_STATUS" -eq 1 ]
+        then
+            cp "$(basename "$index_file")" "$index_file" || exit 1
+        fi
+    done
+}
+###############################################
+# Updates the commit history
+# Arguments:
+#   History directory, Commit Number, File,
+# Outputs:
+#   Modified time 
+###############################################
+update_commit_history () {
+    HISTORY_DIR=$1
+    COMMIT_NUM=$2
+    FILE=$3
+    FILE_PATH="$HISTORY_DIR/commit_$COMMIT_NUM/$(basename "$FILE")"
+
+    create_dir "$HISTORY_DIR/commit_$COMMIT_NUM"       
+    create_file "$FILE_PATH"
+    cp "$FILE" "$FILE_PATH" || exit 1
+}
+###############################################
+# Clears staged folder
+# Arguments:
+#   N/A
+# Outputs:
+#   1 if rm fails
+###############################################
+clear_staged () {
+    STAGED_DIR=.pig/logs/staged
+    for staged_file in "$STAGED_DIR"/*
+    do 
+        if 
+            [ -e "$STAGED_DIR"/"$(basename "$staged_file")" ]
+        then
+            rm "$STAGED_DIR"/"$(basename "$staged_file")" || exit 1
+        fi
+    done
+}
+###############################################
+# Updates staged changes
+# Arguments:
+#   N/A
+# Outputs:
+#   1 if cp fails
+###############################################
+update_staged_changes_dir () {
+    UNSTAGED_DIR=.pig/logs/unstaged
+    STAGED_DIR=.pig/logs/staged
+    for unstaged_file in "$UNSTAGED_DIR"/*
+    do
+        if 
+            [ ! -e "$STAGED_DIR"/"$(basename "$unstaged_file")" ] &&
+            [ -e "$unstaged_file" ]
+        then
+            create_file "$STAGED_DIR"/"$(basename "$unstaged_file")"
+            cp "$unstaged_file" "$STAGED_DIR/$(basename "$unstaged_file")" || exit 1
+        fi
+    done
+}
+###############################################
+# Clears unstaged folder
+# Arguments:
+#   N/A
+# Outputs:
+#   1 if rm fails
+###############################################
+clear_unstaged () {
+    UNSTAGED_DIR=.pig/logs/unstaged
+    for unstaged_file in "$UNSTAGED_DIR"/*
+    do 
+        if 
+            [ -e "$UNSTAGED_DIR"/"$(basename "$unstaged_file")" ]
+        then
+            rm "$UNSTAGED_DIR"/"$(basename "$unstaged_file")" || exit 1
+        fi
+    done
+}

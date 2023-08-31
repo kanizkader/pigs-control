@@ -1,0 +1,134 @@
+#!/bin/dash
+# 
+# Saves a copy of all files in the index to the repository.
+
+PATH=$PATH:.
+. pigs-helpers
+pigs_dir_exists pigs-commit
+
+COMMITS_LOG=.pig/logs/commits
+COMMIT_NUM="$(wc -l "$COMMITS_LOG" | cut -d ' ' -f1)"
+INDEX_DIR=.pig/index
+HISTORY_DIR=.pig/logs/history
+DELETED_DIR=.pig/logs/tmp_deleted
+MODIFIED="false"
+
+# Check correct num args
+if 
+    { [ "$#" -ne 2 ] || [ "$1" != '-m' ] || [ -z "$2" ]; } &&
+    { [ "$#" -ne 3 ] || [ "$1" != '-a' ] || [ "$2" != '-m' ] || [ -z "$2" ]; }
+then
+   echo 'usage: pigs-commit [-a] -m commit-message' >&2
+   exit 1
+fi
+
+# Checks whether -a is used or not
+if 
+    [ "$#" -eq 2 ] 
+then
+    COMMIT_MSG="$2"
+else
+    COMMIT_MSG="$3"
+fi
+
+
+# Check if commits log is empty
+if 
+    [ ! -s "$COMMITS_LOG" ]
+then
+    # If index directory is not empty
+    if 
+        [ -n "$(ls -A "$INDEX_DIR")" ] 
+    then
+        # if -a option used
+        if 
+            [ "$#" -eq 3 ]
+        then
+            update_index_file $INDEX_DIR
+        fi
+
+        # If tmp_deleted directory is not empty
+        if 
+            [ -n "$(ls -A "$DELETED_DIR")" ] 
+        then
+            MODIFIED="true"
+            rm "$DELETED_DIR"/*
+        fi
+ 
+        for file in "$INDEX_DIR"/*
+        do
+            update_commit_history "$HISTORY_DIR" "$COMMIT_NUM" "$file"
+        done     
+        MODIFIED="true"
+    fi
+else
+    # if -a option used
+    if 
+        [ "$#" -eq 3 ]
+    then
+        update_index_file $INDEX_DIR
+    fi
+
+    PREV_COMMIT_DIR="$HISTORY_DIR/commit_$((COMMIT_NUM - 1))"
+
+    # If index directory is not empty
+    if 
+        [ -n "$(ls -A "$INDEX_DIR")" ] 
+    then
+        for index_file in "$INDEX_DIR"/*
+        do 
+            PREV_COMMIT_FILE="$PREV_COMMIT_DIR/$(basename "$index_file")"
+            # Check if file existed in previous commit
+            if
+                [ -e  "$PREV_COMMIT_FILE" ]
+            then
+                # Compare file in index against prev commit 
+                diff "$PREV_COMMIT_FILE" "$index_file" > /dev/null
+                EXIT_STATUS="$?"
+                if 
+                    [ "$EXIT_STATUS" -eq 1 ]
+                then
+                    MODIFIED="true"
+                fi
+            else
+                MODIFIED="true"
+            fi
+            update_commit_history "$HISTORY_DIR" "$COMMIT_NUM" "$index_file"
+        done
+    fi
+
+    # If tmp_deleted directory is not empty
+    if 
+        [ -n "$(ls -A "$DELETED_DIR")" ] 
+    then
+        MODIFIED="true"
+        rm "$DELETED_DIR"/*
+    fi
+
+    # If in prev commit, but not in index AKA deleted file
+    for commit_file in "$PREV_COMMIT_DIR"/*
+    do
+        INDEX_FILE="$INDEX_DIR/$(basename "$commit_file")"
+        if
+            [ ! -e  "$INDEX_FILE" ]
+        then
+            MODIFIED="true"
+        fi
+    done
+fi
+
+if 
+    [ "$MODIFIED" = "true" ]
+then
+    # Update staged and unstaged directories
+    clear_staged
+    update_staged_changes_dir
+    clear_unstaged
+
+    # Send success msg to user & updates commit log
+    LAST_MOD=$(modified_time "$COMMITS_LOG")
+    echo "$LAST_MOD | commit $COMMIT_NUM: $COMMIT_MSG" >> "$COMMITS_LOG"
+    echo "Committed as commit $COMMIT_NUM"
+else 
+    echo 'nothing to commit'
+fi

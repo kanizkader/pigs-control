@@ -1,0 +1,149 @@
+#!/bin/dash
+# 
+# Removes a file from the index, or,from the current directory and the index.
+
+PATH=$PATH:.
+. pigs-helpers
+pigs_dir_exists pigs-rm
+
+INDEX_DIR=.pig/index
+DELETED_DIR=.pig/logs/tmp_deleted
+UNSTAGED_DIR=.pig/logs/unstaged
+MSG="in index is different to both the working file and the repository"
+
+# Check correct num args
+if 
+    [ "$#" -lt 1 ]
+then
+   echo 'usage: pigs-rm [--force] [--cached] <filenames>' >&2
+   exit 1
+fi
+
+# Check args
+if
+    [ "$1" = '--force' ] && [ "$2" = '--cached' ]
+then
+    shift 2 || exit
+    for filename in "$@"
+    do
+        INDEX_FILE="$INDEX_DIR/$filename"
+        ERR_MSG="pigs-rm: error: '$filename'"
+
+        # if file exists in index
+        if 
+            [ ! -e  "$INDEX_DIR/$filename" ]
+        then
+            echo "$ERR_MSG is not in the pigs repository" >&2
+            exit 1
+        fi
+
+        rm "$INDEX_FILE" || exit
+    done
+    
+elif 
+    [ "$1" = '--force' ] || [ "$1" = '--cached' ]
+then
+    COMMAND=$1
+    shift 1 || exit
+    for filename in "$@"
+    do
+        INDEX_FILE="$INDEX_DIR/$filename"
+        ERR_MSG="pigs-rm: error: '$filename'"
+
+        # if file exists in index
+        if 
+            [ ! -e  "$INDEX_DIR/$filename" ]
+        then
+            echo "$ERR_MSG is not in the pigs repository" >&2
+            exit 1
+        fi
+
+        if 
+            [ "$COMMAND" = '--cached' ]
+        then
+            if
+                [ -e "$UNSTAGED_DIR"/"$filename" ]
+            then
+                # compare the working dir file and unstaged file
+                diff "$filename" "$UNSTAGED_DIR"/"$filename" > /dev/null
+                EXIT_STATUS="$?"
+                if 
+                    [ "$EXIT_STATUS" -eq 1 ]
+                then
+                    echo "$ERR_MSG $MSG" >&2
+                    exit 1
+                fi
+            fi
+
+            rm "$INDEX_FILE" || exit
+        elif
+            [ "$COMMAND" = '--force' ]
+        then
+            # if file exists in working directory
+            if 
+                [ -e "$filename" ]
+            then
+                rm "$filename" || exit
+                create_file "$DELETED_DIR/$filename"
+                cp "$INDEX_FILE" "$DELETED_DIR/$filename" || exit 1
+            fi
+
+            rm "$INDEX_FILE" || exit
+        fi  
+    done
+else
+    for filename in "$@"
+    do
+        INDEX_FILE="$INDEX_DIR/$filename"
+        ERR_MSG="pigs-rm: error: '$filename'"
+        if 
+            [ ! -e  "$INDEX_FILE" ]
+        then
+            echo "$ERR_MSG is not in the pigs repository" >&2
+            exit 1
+        fi
+
+        # Compare file in index against file in repo
+        diff "$INDEX_FILE" "$filename" > /dev/null
+        EXIT_STATUS="$?"
+        if 
+            [ "$EXIT_STATUS" -eq 1 ]
+        then
+            # Compare with unstaged changes
+            if 
+                [ -e "$UNSTAGED_DIR"/"$filename" ]
+            then
+                diff "$filename" "$UNSTAGED_DIR"/"$filename" > /dev/null
+                EXIT_STATUS="$?"
+                if 
+                    [ "$EXIT_STATUS" -eq 1 ]
+                then
+                    echo "$ERR_MSG $MSG" >&2
+                    exit 1
+                fi
+            fi
+
+            echo "$ERR_MSG in the repository is different to the working file" >&2
+            exit 1
+        fi
+
+        # if unstaged ver of file exists
+        if
+            [ -e "$UNSTAGED_DIR"/"$filename" ]
+        then
+            echo "$ERR_MSG has staged changes in the index" >&2
+            exit 1
+        fi
+        
+        # if file exists in working directory
+        if 
+            [ -e "$filename" ]
+        then
+            rm "$filename" || exit
+            create_file "$DELETED_DIR/$filename"
+            cp "$INDEX_FILE" "$DELETED_DIR/$filename" || exit 1
+        fi
+
+        rm "$INDEX_FILE" || exit
+    done
+fi

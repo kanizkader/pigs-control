@@ -1,0 +1,67 @@
+#!/bin/dash
+# 
+# Adds the contents of one or more files to the index.
+
+PATH=$PATH:.
+. pigs-helpers
+pigs_dir_exists pigs-add
+
+INDEX_DIR=.pig/index
+DELETED_DIR=.pig/logs/tmp_deleted
+UNSTAGED_DIR=.pig/logs/unstaged
+
+# Check correct num args
+if 
+    [ "$#" -lt 1 ]
+then
+   echo 'usage: pigs-add <filenames>' >&2 
+   exit 1
+fi
+
+for filename in "$@"
+do
+    # Invalid File Name
+    if echo "$filename" | grep -q '^[a-zA-Z0-9][a-zA-Z0-9._-]*$'
+    then
+        :
+    else
+        echo "pigs-add: error: invalid filename '$filename'" >&2 
+        exit 1
+    fi
+
+    # If index directory is not empty
+    if 
+        [ -n "$(ls -A "$INDEX_DIR")" ] 
+    then
+        for index_file in "$INDEX_DIR"/*
+        do
+            DELETED_FILE="$(basename "$index_file")"
+            # If file exists in repo, but not in working directory
+            if 
+                [ "$filename" = "$DELETED_FILE" ] &&
+                [ ! -e "$filename" ]
+            then
+                create_file "$DELETED_DIR/$filename"
+                cp "$index_file" "$DELETED_DIR/$filename" || exit 1
+                rm "$index_file" || exit 1
+                exit
+            fi
+        done
+    fi
+
+    # Check if file exists
+    if 
+        [ ! -f "$filename" ]
+    then
+        echo "pigs-add: error: can not open '$filename'" >&2
+        exit 1
+    fi
+
+    # Add file to index
+    create_file "$INDEX_DIR/$filename"
+    cp "$filename" "$INDEX_DIR/$filename" || exit 1
+
+    # Add to unstaged directory
+    create_file "$UNSTAGED_DIR/$filename"
+    cp "$filename" "$UNSTAGED_DIR/$filename" || exit 1
+done

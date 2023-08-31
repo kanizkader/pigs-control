@@ -1,0 +1,24 @@
+#!/bin/dash
+# 
+# Prints a line for every commit made to the repository.
+
+PATH=$PATH:.
+. pigs-helpers
+pigs_dir_exists pigs-log
+COMMITS_LOG=.pig/logs/commits
+
+# Check correct num args
+if 
+    [ "$#" -ne 0 ]
+then 
+    echo 'usage: pigs-log' >&2
+    exit 1
+fi
+
+# Print out log
+tac "$COMMITS_LOG" \
+    | cut -d '|' -f2 \
+    | sed -e s/' commit'//g \
+    | sed -e s/://g \
+    | sed -e 's/^ //' \
+    | sed -e 's/$/ commit/'

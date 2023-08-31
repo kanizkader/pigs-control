@@ -1,0 +1,33 @@
+#!/bin/dash
+# 
+# Creates an empty Pigs repository.
+
+PATH=$PATH:.
+. pigs-helpers
+
+if 
+    [ -d '.pig' ]
+then
+    echo 'pigs-init: error: .pig already exists' >&2 
+    exit 1
+else 
+    mkdir '.pig' || exit 1
+    echo 'Initialized empty pigs repository in .pig'
+fi
+
+# Create tree inside repo
+cd .pig || exit 1
+create_dir 'index'
+create_dir 'logs'
+
+create_dir 'branches'
+create_dir 'branches/master'
+create_file 'curr_branch'
+echo master > 'curr_branch'
+
+cd logs || exit 1
+create_file 'commits'
+create_dir 'unstaged'
+create_dir 'staged'
+create_dir 'tmp_deleted'
+create_dir 'history'

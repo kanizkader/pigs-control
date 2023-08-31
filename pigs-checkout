@@ -1,0 +1,50 @@
+#!/bin/dash
+# 
+# Switches branches.
+
+PATH=$PATH:.
+. pigs-helpers
+pigs_dir_exists pigs-checkout
+
+COMMITS_LOG=.pig/logs/commits
+COMMIT_NUM="$(wc -l "$COMMITS_LOG" | cut -d ' ' -f1)"
+
+# If no commits
+if
+    [ "$COMMIT_NUM" -eq 0 ]
+then
+    echo "pigs-checkout: error: this command can not be run until after the first commit" >&2
+    exit 1
+fi
+
+# Check correct num of args
+if
+    [ "$#" -ne 1 ]
+then
+    echo "usage: pigs-checkout <branch>" >&2
+    exit 1
+fi
+
+BRANCH="$1"
+BRANCHES_DIR=.pig/branches
+CURR_BRANCH=.pig/curr_branch
+
+# check if branch exists
+if 
+    [ -d "$BRANCHES_DIR"/"$BRANCH" ]
+then
+    # check if we're already in that branch
+    if
+        [ "$(cat $CURR_BRANCH )" = "$BRANCH" ]
+    then
+        echo "Already on '$BRANCH'"
+        exit
+    else 
+        : > "$CURR_BRANCH"
+        echo "$BRANCH" > "$CURR_BRANCH"
+        echo "Switched to branch '$BRANCH'"
+    fi
+else 
+    echo "pigs-checkout: error: unknown branch '$BRANCH'" >&2
+    exit 1
+fi

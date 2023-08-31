@@ -1,0 +1,127 @@
+#!/bin/dash
+# 
+# Shows the status of files in the current directory, the index,
+# and the repository.
+
+PATH=$PATH:.
+. pigs-helpers
+pigs_dir_exists pigs-status
+
+INDEX_DIR=.pig/index
+DELETED_DIR=.pig/logs/tmp_deleted
+STATUS_FILE='.pig/logs/status'
+UNSTAGED_DIR=.pig/logs/unstaged
+STAGED_DIR=.pig/logs/staged
+
+# Check args
+if 
+    [ "$#" -ne 0 ]
+then 
+    echo "usage: pigs-status" >&2
+    exit 1
+fi
+
+# Clear file
+: > "$STATUS_FILE"
+        
+for file in *
+do
+    if  
+        [ -e "$INDEX_DIR/$file" ]
+    then
+        # Compare file in index to in working directory
+        diff "$file" "$INDEX_DIR/$file" > /dev/null
+        EXIT_STATUS="$?"
+        if 
+            [ "$EXIT_STATUS" -eq 1 ]
+        then
+            # if staged ver of file exists
+            if
+                [ -e "$STAGED_DIR"/"$file" ]
+            then
+                # Compare file in index to in staged
+                diff "$STAGED_DIR"/"$file" "$INDEX_DIR/$file" > /dev/null
+                EXIT_STATUS="$?"
+                if 
+                    [ "$EXIT_STATUS" -eq 1 ]
+                then
+                    MSG="file changed, different changes staged for commit"
+                    echo "$file - $MSG" >> "$STATUS_FILE"
+                else
+                    MSG="file changed, changes not staged for commit"
+                    echo "$file - $MSG" >> "$STATUS_FILE"
+                fi
+            else
+                MSG="file changed, changes not staged for commit"
+                echo "$file - $MSG" >> "$STATUS_FILE"
+            
+            fi
+        else
+            if
+                [ -e "$STAGED_DIR"/"$file" ] &&
+                [ -e "$UNSTAGED_DIR"/"$file" ]
+            then
+                MSG="file changed, changes staged for commit"
+                echo "$file - $MSG" >> "$STATUS_FILE"
+            elif 
+                [ -e "$STAGED_DIR"/"$file" ]
+            then    
+                echo "$file - same as repo" >> "$STATUS_FILE"
+            elif
+                [ -e "$UNSTAGED_DIR"/"$file" ]
+            then     
+                echo "$file - added to index" >> "$STATUS_FILE"
+            fi  
+        fi
+    else
+        # if file exists
+        if 
+            [ -e "$file" ]
+        then
+            if
+                [ -e "$STAGED_DIR"/"$file" ] ||
+                [ ! -e "$UNSTAGED_DIR"/"$file" ] 
+            then
+                echo "$file - deleted from index" >> "$STATUS_FILE"
+            else   
+                echo "$file - untracked" >> "$STATUS_FILE"
+            fi
+        fi
+    fi
+done
+
+# If files exist in index, but not in working directory
+for file in "$INDEX_DIR"/*
+do
+    # if file doesn't exist in working directory
+    if  
+        [ ! -e "$(basename "$file")" ] &&
+        [ ! -e "$STAGED_DIR"/"$(basename "$file")" ] &&
+        [ -e "$file" ]
+
+    then
+        MSG="added to index, file deleted"
+        echo "$(basename "$file") - $MSG" >> "$STATUS_FILE"
+    elif
+        [ ! -e "$(basename "$file")" ] &&
+        [ -e "$STAGED_DIR"/"$(basename "$file")" ] &&
+        [ -e "$file" ]
+    then
+        echo "$(basename "$file") - file deleted" >> "$STATUS_FILE"
+    fi
+done
+
+# if file is in tmp_deleted folder
+for file in "$DELETED_DIR"/*
+do
+    if 
+        [ -e "$file" ] &&
+        [ ! -e "$UNSTAGED_DIR"/"$(basename "$file")" ]
+    then
+        MSG="file deleted, deleted from index"
+        echo "$(basename "$file") - $MSG" >> "$STATUS_FILE"
+    fi
+done
+
+# shellcheck disable=SC2002
+cat "$STATUS_FILE" | sort -d

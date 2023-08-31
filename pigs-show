@@ -1,0 +1,63 @@
+#!/bin/dash
+# 
+# Prints the contents of the specified filename as of the specified commit.
+
+PATH=$PATH:.
+. pigs-helpers
+pigs_dir_exists pigs-show
+COMMAND="$1"
+
+# Check correct num args
+if 
+    [ "$#" -ne 1 ]
+then 
+    echo 'usage: pigs-show <commit>:<filename>' >&2
+    exit 1
+fi
+
+COMMIT_NUM="$(echo "$COMMAND" | cut -d ':' -f1)"
+FILENAME="$(echo "$COMMAND" | cut -d ':' -f2)"
+HISTORY_DIR=.pig/logs/history
+INDEX_DIR=.pig/index
+
+# Invalid File Name
+if echo "$FILENAME" | grep -q '^[a-zA-Z0-9][a-zA-Z0-9._-]*$'
+then
+    :
+else
+    echo "pigs-show: error: invalid filename '$FILENAME'" >&2
+    exit 1
+fi
+
+# If commit number is not empty
+if
+    [ -n "$COMMIT_NUM" ]
+then
+    # Invalid commit number
+    if
+        [ ! -d "$HISTORY_DIR/commit_$COMMIT_NUM" ]
+    then
+        echo "pigs-show: error: unknown commit '$COMMIT_NUM'" >&2
+        exit 1
+    fi
+
+    # File doesn't exist in given commit
+    if
+        [ ! -e "$HISTORY_DIR/commit_$COMMIT_NUM/$FILENAME" ]
+    then
+        echo "pigs-show: error: '$FILENAME' not found in commit $COMMIT_NUM" >&2
+        exit 1
+    fi 
+
+    cat "$HISTORY_DIR/commit_$COMMIT_NUM/$FILENAME"
+else
+    # File doesn't exist in index
+    if
+        [ ! -e "$INDEX_DIR/$FILENAME" ]
+    then
+        echo "pigs-show: error: '$FILENAME' not found in index" >&2
+        exit 1
+    fi 
+
+    cat "$INDEX_DIR/$FILENAME"
+fi
